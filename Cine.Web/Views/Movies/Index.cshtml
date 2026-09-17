@@ -1,0 +1,40 @@
+@model Cine.Web.Models.MoviesViewModel
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Now Showing";
+    var queryBase = $"&search={Uri.EscapeDataString(Model.SearchTerm)}&sort={Model.Sort}&cartoons={Model.ShowCartoons.ToString().ToLowerInvariant()}";
+}
+
+<section class="schedule-hero">
+    <p class="eyebrow">CINESTAR / MOSTAR</p>
+    <div class="hero-row"><div><h1>Find your<br /><em>next scene.</em></h1><p class="hero-copy">Tonight's screenings, organized around your time.</p></div><div class="hero-stamp" aria-hidden="true"><span>ON</span><strong>SCREEN</strong><span>NOW</span></div></div>
+</section>
+<div class="date-strip" id="date-strip" aria-label="Screening dates">
+    @foreach (var date in Model.AvailableDates)
+    {
+        <a href="?date=@date.ToString("yyyy-MM-dd")@queryBase" class="date-chip @(date == Model.SelectedDate ? "active" : "")"><span>@date.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant()</span><strong>@date.ToString("dd")</strong><small>@date.ToString("MMM", CultureInfo.InvariantCulture).ToUpperInvariant()</small></a>
+    }
+</div>
+<form method="get" class="toolbar">
+    <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+    <label class="search-box" for="search"><span aria-hidden="true">⌕</span><input id="search" name="search" value="@Model.SearchTerm" placeholder="Search movies..." /></label>
+    <label class="select-box">Sort <select name="sort" onchange="this.form.submit()"><option value="time" selected="@(Model.Sort == "time" ? "selected" : null)">Earliest showtime</option><option value="title" selected="@(Model.Sort == "title" ? "selected" : null)">Title A-Z</option></select></label>
+    <label class="toggle"><input type="checkbox" name="cartoons" value="true" checked="@(Model.ShowCartoons ? "checked" : null)" onchange="this.form.submit()" /><span></span> Include cartoons</label>
+    <button type="submit" class="search-button">Search</button>
+</form>
+<div class="results-heading"><div><p class="eyebrow">@Model.SelectedDate.ToString("dddd, dd MMMM", CultureInfo.InvariantCulture)</p><h2>Showing <span>@Model.MovieCount.ToString("00")</span></h2></div><p class="legend"><i></i> Prime-time pick</p></div>
+<section class="movie-grid">
+    @foreach (var movie in Model.Movies)
+    {
+        <article class="movie-card"><div class="movie-index">@(Model.Movies.IndexOf(movie) + 1).0</div><div class="movie-info"><div class="title-line"><h3>@movie.Title</h3>@if (movie.IsCartoon) { <span class="genre-tag">CARTOON</span> }</div><p class="description">@movie.Description</p><div class="movie-meta"><span>@(string.IsNullOrWhiteSpace(movie.Price) ? "Tickets at box office" : movie.Price)</span><a href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a></div></div><div class="showtimes"><span class="showtimes-label">SHOWTIMES</span><div class="time-list">
+            @foreach (var showtime in movie.Showtimes.OrderBy(time => time.Time))
+            {
+                var hour = int.TryParse(showtime.Time.Split(':')[0], out var parsedHour) ? parsedHour : -1;
+                var primeTime = Model.SelectedDate.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && (hour == 16 || hour == 17);
+                <span class="time-pill @(primeTime ? "prime-time" : "")">@showtime.Time</span>
+            }
+        </div></div></article>
+    }
+</section>
+@if (Model.MovieCount == 0) { <div class="empty-state"><strong>No screenings found.</strong><span>Try another search or turn cartoons back on.</span></div> }
