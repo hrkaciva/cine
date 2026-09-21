@@ -13,6 +13,7 @@ The CineStar page contains useful information, but it can be difficult to scan q
 - Highlights weekday screenings starting around 16:00 and 17:00
 - Shows each movie's description and ticket price when available
 - Links each movie to its CineStar detail page
+- Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page
 - Keeps the selected date and schedule easy to scan on mobile
 - Caches scraped data for one hour to avoid unnecessary requests
 
@@ -33,6 +34,7 @@ Cine/
 │   ├── Controllers/MoviesController.cs
 │   ├── Models/MoviesViewModel.cs
 │   ├── Views/Movies/Index.cshtml
+│   ├── Views/Movies/Upcoming.cshtml
 │   └── wwwroot/                # Page styling and scroll behavior
 ├── Cine.sln
 └── README.md
@@ -61,6 +63,8 @@ http://localhost:xxxx
 
 The default route opens the movie schedule directly.
 
+Open `/upcoming` to see movies scraped from CineStar's upcoming-films page. The page is linked from the main schedule but is not part of the site's primary header navigation.
+
 ## Useful Query Parameters
 
 The filters are represented in the URL, so a view can be bookmarked or shared.
@@ -81,6 +85,8 @@ The filters are represented in the URL, so a view can be bookmarked or shared.
 3. Results are cached in memory for one hour.
 4. `MoviesController` applies the selected date, search, cartoon filter, and sort order.
 5. The MVC view renders the schedule in a responsive layout.
+
+The `/upcoming` action discovers the current “Uskoro” link from the CineStar homepage, then uses a separate one-hour cache for the resulting movie list. This avoids depending on CineStar's numeric page suffix.
 
 A background service warms the cache and refreshes it approximately once per hour while the web app is running.
 

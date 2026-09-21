@@ -7,6 +7,16 @@ namespace Cine.Web.Controllers;
 
 public class MoviesController(ParsingMoviesService parsingMoviesService) : Controller
 {
+    [HttpGet("/upcoming")]
+    public async Task<IActionResult> Upcoming()
+    {
+        var movies = (await parsingMoviesService.GetUpcomingMoviesAsync())
+            .OrderBy(movie => movie.Title)
+            .ToList();
+
+        return View(movies);
+    }
+
     public async Task<IActionResult> Index(DateOnly? date, string? search, string? sort, bool cartoons = false)
     {
         var selectedDate = date ?? DateOnly.FromDateTime(DateTime.Now);

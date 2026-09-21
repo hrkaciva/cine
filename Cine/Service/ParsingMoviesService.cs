@@ -7,6 +7,9 @@ namespace Cine.Service;
 public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
 {
     private const string CacheKey = "movies";
+    private const string UpcomingCacheKey = "upcoming-movies";
+    private const string HomepageUrl = "https://cinestarcinemas.ba/";
+    private const string ScheduleUrl = "https://cinestarcinemas.ba/mostar-mepas-mall";
 
     public async Task<List<Movie>> GetMoviesAsync()
     {
@@ -15,17 +18,48 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
             return cachedMovies!;
         }
 
-        var movies = await ScrapeMoviesAsync();
+        var movies = await ScrapeMoviesAsync(ScheduleUrl);
 
         cache.Set(CacheKey, movies, TimeSpan.FromHours(1));
 
         return movies;
     }
 
-    private async Task<List<Movie>> ScrapeMoviesAsync()
+    public async Task<List<Movie>> GetUpcomingMoviesAsync()
+    {
+        if (cache.TryGetValue(UpcomingCacheKey, out List<Movie>? cachedMovies))
+        {
+            return cachedMovies!;
+        }
+
+        var upcomingUrl = await FindUpcomingUrlAsync();
+        var movies = await ScrapeMoviesAsync(upcomingUrl);
+        cache.Set(UpcomingCacheKey, movies, TimeSpan.FromHours(1));
+
+        return movies;
+    }
+
+    private async Task<string> FindUpcomingUrlAsync()
+    {
+        var htmlResponse = await httpClient.GetStringAsync(HomepageUrl);
+        var htmlDoc = new HtmlDocument();
+        htmlDoc.LoadHtml(htmlResponse);
+
+        var upcomingLink = htmlDoc.DocumentNode
+            .SelectNodes("//a[@href]")?
+            .FirstOrDefault(link => HtmlEntity.DeEntitize(link.InnerText).Trim()
+                .Contains("uskoro", StringComparison.OrdinalIgnoreCase));
+
+        if (upcomingLink == null)
+            throw new InvalidOperationException("Could not find the upcoming movies link on the CineStar homepage.");
+
+        return MakeAbsoluteUrl(upcomingLink.GetAttributeValue("href", ""));
+    }
+
+    private async Task<List<Movie>> ScrapeMoviesAsync(string sourceUrl)
     {
         Console.WriteLine($"Scraping CineStar... {DateTime.Now}");
-        var htmlResponse = await httpClient.GetStringAsync("https://cinestarcinemas.ba/mostar-mepas-mall");
+        var htmlResponse = await httpClient.GetStringAsync(sourceUrl);
 
         var htmlDoc = new HtmlDocument();
         htmlDoc.LoadHtml(htmlResponse);
