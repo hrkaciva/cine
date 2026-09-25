@@ -78,6 +78,9 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
             var price = FirstText(movieNode, ".//*[contains(@class, 'price')]") ?? "";
             var searchableText = movieNode.InnerText.ToLowerInvariant();
 
+            if (searchableText.Contains("uživo") || searchableText.Contains("uzivo"))
+                continue;
+
             var dayWrappers = movieNode.SelectNodes(".//div[@class='day-wrapper']");
 
             if (dayWrappers != null)
