@@ -1,47 +1,82 @@
 using Cine.Models;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Cine.Service;
 
-public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
+public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache, ILogger<ParsingMoviesService> logger)
 {
     private const string CacheKey = "movies";
     private const string UpcomingCacheKey = "upcoming-movies";
+    private const string StaleCacheKey = "movies-stale";
+    private const string StaleUpcomingCacheKey = "upcoming-movies-stale";
     private const string HomepageUrl = "https://cinestarcinemas.ba/";
     private const string ScheduleUrl = "https://cinestarcinemas.ba/mostar-mepas-mall";
 
-    public async Task<List<Movie>> GetMoviesAsync()
+    public async Task<MovieDataResult> GetMoviesAsync(CancellationToken cancellationToken = default)
     {
-        if (cache.TryGetValue(CacheKey, out List<Movie>? cachedMovies))
+        if (cache.TryGetValue(CacheKey, out CachedMovies? cachedMovies))
         {
-            return cachedMovies!;
+            return new MovieDataResult(cachedMovies!.Movies, false, cachedMovies.FetchedAt, null);
         }
 
-        var movies = await ScrapeMoviesAsync(ScheduleUrl);
-
-        cache.Set(CacheKey, movies, TimeSpan.FromHours(1));
-
-        return movies;
+        return await GetOrUseStaleAsync(CacheKey, StaleCacheKey, ScheduleUrl, cancellationToken);
     }
 
-    public async Task<List<Movie>> GetUpcomingMoviesAsync()
+    public async Task<MovieDataResult> GetUpcomingMoviesAsync(CancellationToken cancellationToken = default)
     {
-        if (cache.TryGetValue(UpcomingCacheKey, out List<Movie>? cachedMovies))
+        if (cache.TryGetValue(UpcomingCacheKey, out CachedMovies? cachedMovies))
         {
-            return cachedMovies!;
+            return new MovieDataResult(cachedMovies!.Movies, false, cachedMovies.FetchedAt, null);
         }
 
-        var upcomingUrl = await FindUpcomingUrlAsync();
-        var movies = await ScrapeMoviesAsync(upcomingUrl);
-        cache.Set(UpcomingCacheKey, movies, TimeSpan.FromHours(1));
-
-        return movies;
+        try
+        {
+            var upcomingUrl = await FindUpcomingUrlAsync(cancellationToken);
+            return await GetOrUseStaleAsync(UpcomingCacheKey, StaleUpcomingCacheKey, upcomingUrl, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            return UseStaleOrThrow(StaleUpcomingCacheKey, exception);
+        }
     }
 
-    private async Task<string> FindUpcomingUrlAsync()
+    private async Task<MovieDataResult> GetOrUseStaleAsync(
+        string cacheKey,
+        string staleCacheKey,
+        string sourceUrl,
+        CancellationToken cancellationToken)
     {
-        var htmlResponse = await httpClient.GetStringAsync(HomepageUrl);
+        try
+        {
+            var movies = await ScrapeMoviesAsync(sourceUrl, cancellationToken);
+            var cachedMovies = new CachedMovies(movies, DateTimeOffset.UtcNow);
+            cache.Set(cacheKey, cachedMovies, TimeSpan.FromHours(1));
+            cache.Set(staleCacheKey, cachedMovies);
+            return new MovieDataResult(movies, false, cachedMovies.FetchedAt, null);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            return UseStaleOrThrow(staleCacheKey, exception);
+        }
+    }
+
+    private MovieDataResult UseStaleOrThrow(string staleCacheKey, Exception exception)
+    {
+        if (cache.TryGetValue(staleCacheKey, out CachedMovies? staleMovies))
+        {
+            logger.LogWarning(exception, "Using stale CineStar data after refresh failed");
+            return new MovieDataResult(staleMovies!.Movies, true, staleMovies.FetchedAt, exception.Message);
+        }
+
+        logger.LogError(exception, "CineStar data could not be loaded and no cached data is available");
+        throw exception;
+    }
+
+    private async Task<string> FindUpcomingUrlAsync(CancellationToken cancellationToken)
+    {
+        var htmlResponse = await httpClient.GetStringAsync(HomepageUrl, cancellationToken);
         var htmlDoc = new HtmlDocument();
         htmlDoc.LoadHtml(htmlResponse);
 
@@ -56,18 +91,18 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
         return MakeAbsoluteUrl(upcomingLink.GetAttributeValue("href", ""));
     }
 
-    private async Task<List<Movie>> ScrapeMoviesAsync(string sourceUrl)
+    private async Task<List<Movie>> ScrapeMoviesAsync(string sourceUrl, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"Scraping CineStar... {DateTime.Now}");
-        var htmlResponse = await httpClient.GetStringAsync(sourceUrl);
+        logger.LogInformation("Scraping CineStar schedule from {SourceUrl}", sourceUrl);
+        var htmlResponse = await httpClient.GetStringAsync(sourceUrl, cancellationToken);
 
         var htmlDoc = new HtmlDocument();
         htmlDoc.LoadHtml(htmlResponse);
 
         var movies = new List<Movie>();
-        var movieNodes = htmlDoc.DocumentNode.SelectNodes("//div[@class='movie-item d-flex']");
+        var movieNodes = htmlDoc.DocumentNode.SelectNodes("//div[contains(concat(' ', normalize-space(@class), ' '), ' movie-item ')]");
 
-        foreach (var movieNode in movieNodes)
+        foreach (var movieNode in movieNodes ?? Enumerable.Empty<HtmlNode>())
         {
             var titleNode = movieNode.SelectSingleNode(".//h2") ?? movieNode.SelectSingleNode(".//h3");
             var title = HtmlEntity.DeEntitize(titleNode?.InnerText ?? "Untitled movie").Trim();
@@ -81,17 +116,17 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
             if (searchableText.Contains("uživo") || searchableText.Contains("uzivo"))
                 continue;
 
-            var dayWrappers = movieNode.SelectNodes(".//div[@class='day-wrapper']");
+            var dayWrappers = movieNode.SelectNodes(".//div[contains(concat(' ', normalize-space(@class), ' '), ' day-wrapper ')]");
 
             if (dayWrappers != null)
             {
                 foreach (var dayWrapper in dayWrappers)
                 {
-                    var dayText = dayWrapper.SelectSingleNode(".//div[@class='day']")?.InnerText.Trim();
+                    var dayText = dayWrapper.SelectSingleNode(".//div[contains(concat(' ', normalize-space(@class), ' '), ' day ')]")?.InnerText.Trim();
 
                     var date = ParseDate(dayText);
 
-                    var timeNodes = dayWrapper.SelectNodes(".//div[@class='time']");
+                    var timeNodes = dayWrapper.SelectNodes(".//div[contains(concat(' ', normalize-space(@class), ' '), ' time ')]");
 
                     if (timeNodes != null && date.HasValue)
                     {
@@ -121,6 +156,9 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
             });
         }
 
+        if (movies.Count == 0)
+            throw new InvalidOperationException("CineStar returned no movie entries. The source markup may have changed.");
+
         return movies;
     }
 
@@ -144,17 +182,18 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
         if (!match.Success)
             return null;
 
-        var dateString = match.Value + DateTime.Now.Year;
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var possibleDates = new[] { today.Year - 1, today.Year, today.Year + 1 }
+            .Select(year => DateOnly.TryParseExact(match.Value + year, "dd.MM.yyyy", out var date) ? date : (DateOnly?)null)
+            .Where(date => date.HasValue)
+            .Select(date => date!.Value);
 
-        if (DateOnly.TryParseExact(dateString, "dd.MM.yyyy", out var date))
-            return date;
-
-        return null;
+        return possibleDates.OrderBy(date => Math.Abs(date.DayNumber - today.DayNumber)).FirstOrDefault();
     }
 
     public async Task<List<Movie>> GetMovieByDateAsync(DateOnly? selectedDate)
     {
-        var movies = await GetMoviesAsync();
+        var movies = (await GetMoviesAsync()).Movies;
         var filteredMovies = new List<Movie>();
 
         foreach (var movie in movies)
@@ -188,7 +227,7 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
 
     public async Task<List<DateOnly>> GetMovieDatesAsync()
     {
-        var movies = await GetMoviesAsync();
+        var movies = (await GetMoviesAsync()).Movies;
         var dates = new List<DateOnly>();
 
         foreach (var movie in movies)
@@ -205,4 +244,12 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache)
         dates.Sort();
         return dates;
     }
+
+    private sealed record CachedMovies(List<Movie> Movies, DateTimeOffset FetchedAt);
 }
+
+public sealed record MovieDataResult(
+    List<Movie> Movies,
+    bool IsStale,
+    DateTimeOffset FetchedAt,
+    string? ErrorMessage);

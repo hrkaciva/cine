@@ -16,6 +16,7 @@ The CineStar page contains useful information, but it can be difficult to scan q
 - Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page
 - Keeps the selected date and schedule easy to scan on mobile
 - Caches scraped data for one hour to avoid unnecessary requests
+- Falls back to the last successful scrape when CineStar is temporarily unavailable
 
 ## Title Variants
 
@@ -88,7 +89,7 @@ The filters are represented in the URL, so a view can be bookmarked or shared.
 
 The `/upcoming` action discovers the current “Uskoro” link from the CineStar homepage, then uses a separate one-hour cache for the resulting movie list. This avoids depending on CineStar's numeric page suffix.
 
-A background service warms the cache and refreshes it approximately once per hour while the web app is running.
+A background service warms the cache and refreshes both the schedule and upcoming-movies data approximately once per hour while the web app is running. Requests use a 15-second timeout and identify the app with a User-Agent header. If a refresh fails, the last successful data is retained and the page marks it as stale.
 
 ## Development Checks
 
@@ -108,5 +109,7 @@ The source page is external and its HTML can change. Optional fields are handled
 - Missing prices show `Tickets at box office`.
 - Missing movie links fall back to the CineStar Mostar page.
 - Cartoon detection uses the source class and common animation labels.
+- Empty or changed result markup is treated as a failed refresh instead of replacing valid cached data.
+- Date parsing considers the previous, current, and next year so schedules around New Year remain usable.
 
 If CineStar changes its markup, update the selectors in `Cine/Service/ParsingMoviesService.cs`.

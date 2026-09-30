@@ -5,43 +5,82 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cine.Web.Controllers;
 
-public class MoviesController(ParsingMoviesService parsingMoviesService) : Controller
+public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger<MoviesController> logger) : Controller
 {
     [HttpGet("/upcoming")]
-    public async Task<IActionResult> Upcoming()
+    public async Task<IActionResult> Upcoming(CancellationToken cancellationToken)
     {
-        var movies = (await parsingMoviesService.GetUpcomingMoviesAsync())
-            .OrderBy(movie => movie.Title)
-            .ToList();
-
-        return View(movies);
+        try
+        {
+            var result = await parsingMoviesService.GetUpcomingMoviesAsync(cancellationToken);
+            return View(new UpcomingMoviesViewModel
+            {
+                Movies = result.Movies.OrderBy(movie => movie.Title).ToList(),
+                IsDataStale = result.IsStale,
+                DataFetchedAt = result.FetchedAt,
+                ErrorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            logger.LogError(exception, "Could not load upcoming movies");
+            return View(new UpcomingMoviesViewModel { ErrorMessage = "CineStar is currently unavailable. Please try again later." });
+        }
     }
 
-    public async Task<IActionResult> Index(DateOnly? date, string? search, string? sort, bool cartoons = false)
+    public async Task<IActionResult> Index(DateOnly? date, string? search, string? sort, bool cartoons = false, CancellationToken cancellationToken = default)
     {
         var selectedDate = date ?? DateOnly.FromDateTime(DateTime.Now);
-
-        var movies = await parsingMoviesService.GetMovieByDateAsync(selectedDate);
         var searchTerm = search?.Trim() ?? string.Empty;
-        if (!cartoons)
-            movies = movies.Where(movie => !movie.IsCartoon).ToList();
-        if (!string.IsNullOrWhiteSpace(searchTerm))
-            movies = movies.Where(movie => movie.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
-                                           || movie.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        movies = (sort ?? "time").Equals("title", StringComparison.OrdinalIgnoreCase)
-            ? movies.OrderBy(movie => movie.Title).ToList()
-            : movies.OrderBy(movie => movie.Showtimes.Select(showtime => showtime.Time).FirstOrDefault()).ToList();
-
         var movieViewModel = new MoviesViewModel
         {
-            Movies = movies,
             SelectedDate = selectedDate,
-            AvailableDates = await parsingMoviesService.GetMovieDatesAsync(),
             SearchTerm = searchTerm,
             Sort = sort ?? "time",
             ShowCartoons = cartoons
         };
+
+        try
+        {
+            var result = await parsingMoviesService.GetMoviesAsync(cancellationToken);
+            var movies = result.Movies
+                .Select(movie => new Movie
+                {
+                    Title = movie.Title,
+                    Description = movie.Description,
+                    Price = movie.Price,
+                    DetailUrl = movie.DetailUrl,
+                    IsCartoon = movie.IsCartoon,
+                    Showtimes = movie.Showtimes.Where(showtime => showtime.Date == selectedDate).ToList()
+                })
+                .Where(movie => movie.Showtimes.Count > 0)
+                .ToList();
+
+            if (!cartoons)
+                movies = movies.Where(movie => !movie.IsCartoon).ToList();
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+                movies = movies.Where(movie => movie.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+                                               || movie.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            movieViewModel.Movies = (movieViewModel.Sort.Equals("title", StringComparison.OrdinalIgnoreCase)
+                    ? movies.OrderBy(movie => movie.Title)
+                    : movies.OrderBy(movie => movie.Showtimes.Min(showtime => showtime.Time)))
+                .ToList();
+            movieViewModel.AvailableDates = result.Movies
+                .SelectMany(movie => movie.Showtimes)
+                .Select(showtime => showtime.Date)
+                .Distinct()
+                .OrderBy(dateValue => dateValue)
+                .ToList();
+            movieViewModel.IsDataStale = result.IsStale;
+            movieViewModel.DataFetchedAt = result.FetchedAt;
+            movieViewModel.ErrorMessage = result.ErrorMessage;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            logger.LogError(exception, "Could not load movie schedule");
+            movieViewModel.ErrorMessage = "CineStar is currently unavailable. Please try again later.";
+        }
 
         return View(movieViewModel);
     }

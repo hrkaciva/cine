@@ -1,4 +1,4 @@
-@model List<Cine.Models.Movie>
+@model Cine.Web.Models.UpcomingMoviesViewModel
 
 @{
     ViewData["Title"] = "Uskoro u kinima";
@@ -10,21 +10,30 @@
     <p class="hero-copy">Filmovi koji uskoro stižu na veliko platno.</p>
 </section>
 
+@if (Model.IsDataStale)
+{
+    <div class="data-notice" role="status">Showing data from @Model.DataFetchedAt?.ToLocalTime().ToString("g"). CineStar could not be refreshed.</div>
+}
+else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="data-notice data-error" role="alert">@Model.ErrorMessage</div>
+}
+
 <div class="results-heading upcoming-heading">
     <div>
         <p class="eyebrow">NAJAVA PROJEKCIJA</p>
-        <h2>Uskoro <span>@Model.Count.ToString("00")</span></h2>
+        <h2>Uskoro <span>@Model.Movies.Count.ToString("00")</span></h2>
     </div>
     <p class="legend"><i></i> Najavljeni filmovi</p>
 </div>
 
-@if (Model.Count > 0)
+@if (Model.Movies.Count > 0)
 {
     <section class="upcoming-grid">
-        @foreach (var movie in Model)
+        @foreach (var movie in Model.Movies)
         {
             <article class="upcoming-card">
-                <div class="movie-index">@(Model.IndexOf(movie) + 1).0</div>
+                <div class="movie-index">@(Model.Movies.IndexOf(movie) + 1).0</div>
                 <div class="upcoming-info">
                     <div class="title-line">
                         <h2>@movie.Title</h2>

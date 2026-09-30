@@ -16,18 +16,19 @@ public class ScraperBackgroundService(ILogger<ScraperBackgroundService> logger, 
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await ScrapeAsync();
+            await ScrapeAsync(stoppingToken);
             await Task.Delay(_interval, stoppingToken);
         }
     }
 
-    private async Task ScrapeAsync()
+    private async Task ScrapeAsync(CancellationToken stoppingToken)
     {
         try
         {
             using var scope = _serviceProvider.CreateScope();
             var service = scope.ServiceProvider.GetRequiredService<ParsingMoviesService>();
-            await service.GetMoviesAsync();
+            await service.GetMoviesAsync(stoppingToken);
+            await service.GetUpcomingMoviesAsync(stoppingToken);
             _logger.LogInformation("Scraper completed at {Time}", DateTime.Now);
         }
         catch (Exception ex)
