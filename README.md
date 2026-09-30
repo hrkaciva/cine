@@ -13,6 +13,7 @@ The CineStar page contains useful information, but it can be difficult to scan q
 - Highlights weekday screenings starting around 16:00 and 17:00
 - Shows each movie's description and ticket price when available
 - Links each movie to its CineStar detail page
+- Saves movies to a browser-local wishlist and shows their current screening times
 - Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page
 - Keeps the selected date and schedule easy to scan on mobile
 - Caches scraped data for one hour to avoid unnecessary requests
@@ -33,8 +34,9 @@ Cine/
 │   └── Service/ParsingMoviesService.cs
 ├── Cine.Web/                   # ASP.NET Core MVC web app
 │   ├── Controllers/MoviesController.cs
-│   ├── Models/MoviesViewModel.cs
+│   ├── Models/MoviesViewModel.cs and WishlistViewModel.cs
 │   ├── Views/Movies/Index.cshtml
+│   ├── Views/Movies/Wishlist.cshtml
 │   ├── Views/Movies/Upcoming.cshtml
 │   └── wwwroot/                # Page styling and scroll behavior
 ├── Cine.sln

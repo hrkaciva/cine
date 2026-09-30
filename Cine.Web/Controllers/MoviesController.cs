@@ -28,6 +28,27 @@ public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger
         }
     }
 
+    [HttpGet("/wishlist")]
+    public async Task<IActionResult> Wishlist(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await parsingMoviesService.GetMoviesAsync(cancellationToken);
+            return View(new WishlistViewModel
+            {
+                Movies = result.Movies.OrderBy(movie => movie.Title).ToList(),
+                IsDataStale = result.IsStale,
+                DataFetchedAt = result.FetchedAt,
+                ErrorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            logger.LogError(exception, "Could not load wishlist schedule");
+            return View(new WishlistViewModel { ErrorMessage = "CineStar is currently unavailable. Please try again later." });
+        }
+    }
+
     public async Task<IActionResult> Index(DateOnly? date, string? search, string? sort, bool cartoons = false, CancellationToken cancellationToken = default)
     {
         var selectedDate = date ?? DateOnly.FromDateTime(DateTime.Now);

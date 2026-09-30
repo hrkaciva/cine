@@ -5,6 +5,18 @@ const dateStrip = document.querySelector('#date-strip');
 const dateStripPositionKey = 'cinestar-date-strip-position';
 const watchedMoviesKey = 'cinestar-watched-movies';
 const hideWatchedKey = 'cinestar-hide-watched';
+const wishlistKey = 'cinestar-wishlist-v2';
+
+const readWishlist = () => {
+    try {
+        return JSON.parse(localStorage.getItem(wishlistKey) || '{}');
+    } catch {
+        return {};
+    }
+};
+
+const writeWishlist = (movies) => localStorage.setItem(wishlistKey, JSON.stringify(movies));
+const updateWishlistCount = () => document.querySelectorAll('[data-wishlist-count]').forEach((count) => { count.textContent = Object.keys(readWishlist()).length; });
 
 if (dateStrip) {
     const savedPosition = sessionStorage.getItem(dateStripPositionKey);
@@ -54,7 +66,7 @@ const applyWatchedFilter = () => {
     const hideWatched = watchedFilter?.checked ?? true;
     let visibleCount = 0;
 
-    document.querySelectorAll('[data-movie-key]').forEach((card) => {
+    document.querySelectorAll('.movie-card[data-movie-key]').forEach((card) => {
         const isHidden = hideWatched && card.classList.contains('is-watched');
         card.classList.toggle('is-hidden-by-filter', isHidden);
         if (!isHidden) visibleCount++;
@@ -71,7 +83,7 @@ if (watchedFilter) {
     });
 }
 
-document.querySelectorAll('[data-movie-key]').forEach((card) => {
+document.querySelectorAll('.movie-card[data-movie-key]').forEach((card) => {
     const movies = readWatchedMovies();
     updateWatchCard(card, movies[card.dataset.movieKey]);
 
@@ -113,5 +125,43 @@ document.querySelectorAll('[data-movie-key]').forEach((card) => {
         updateWatchCard(card, readWatchedMovies()[card.dataset.movieKey]);
     });
 });
+
+document.querySelectorAll('[data-wishlist-action]').forEach((button) => {
+    const card = button.closest('[data-movie-key]');
+    const movieKey = card.dataset.movieKey;
+    const update = () => {
+        const saved = Boolean(readWishlist()[movieKey]);
+        button.textContent = saved ? 'In wishlist' : 'Add to wishlist';
+        button.classList.toggle('is-active', saved);
+    };
+    update();
+    button.addEventListener('click', () => {
+        const movies = readWishlist();
+        if (movies[movieKey]) delete movies[movieKey];
+        else movies[movieKey] = { title: card.dataset.movieTitle };
+        writeWishlist(movies);
+        update();
+        updateWishlistCount();
+    });
+});
+
+const wishlistMovies = readWishlist();
+document.querySelectorAll('[data-wishlist-card]').forEach((card) => {
+    card.classList.toggle('is-hidden-by-filter', !wishlistMovies[card.dataset.movieKey]);
+    card.querySelector('[data-remove-wishlist]')?.addEventListener('click', () => {
+        const movies = readWishlist();
+        delete movies[card.dataset.movieKey];
+        writeWishlist(movies);
+        card.classList.add('is-hidden-by-filter');
+        updateWishlistCount();
+        const hasVisibleMovies = [...document.querySelectorAll('[data-wishlist-card]')].some((item) => !item.classList.contains('is-hidden-by-filter'));
+        const emptyState = document.querySelector('[data-wishlist-empty]');
+        if (emptyState) emptyState.hidden = hasVisibleMovies;
+    });
+});
+
+const wishlistEmpty = document.querySelector('[data-wishlist-empty]');
+if (wishlistEmpty) wishlistEmpty.hidden = [...document.querySelectorAll('[data-wishlist-card]')].some((card) => !card.classList.contains('is-hidden-by-filter'));
+updateWishlistCount();
 
 applyWatchedFilter();

@@ -1,0 +1,39 @@
+@model Cine.Web.Models.WishlistViewModel
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Wishlist";
+}
+
+<section class="wishlist-hero">
+    <p class="eyebrow">CINESTAR / MOSTAR</p>
+    <h1>Your <em>watchlist.</em></h1>
+    <p class="hero-copy">Saved films and their current screening times.</p>
+</section>
+@if (Model.IsDataStale)
+{
+    <div class="data-notice" role="status">Showing data from @Model.DataFetchedAt?.ToLocalTime().ToString("g"). CineStar could not be refreshed.</div>
+}
+else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="data-notice data-error" role="alert">@Model.ErrorMessage</div>
+}
+<section class="wishlist-grid" data-wishlist-list>
+    @foreach (var movie in Model.Movies)
+    {
+        <article class="wishlist-card" data-wishlist-card data-movie-key="@($"{movie.DetailUrl}|{movie.Title}")">
+            <div class="movie-index">@(Model.Movies.IndexOf(movie) + 1).0</div>
+            <div>
+                <div class="wishlist-title"><h2>@movie.Title</h2><button type="button" class="remove-wishlist-button" data-remove-wishlist>Remove</button></div>
+                <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a>
+                <div class="wishlist-times">
+                    @foreach (var day in movie.Showtimes.GroupBy(showtime => showtime.Date).OrderBy(group => group.Key))
+                    {
+                        <div class="wishlist-day"><span>@day.Key.ToString("ddd, dd MMM", CultureInfo.InvariantCulture)</span><div class="time-list">@foreach (var showtime in day.OrderBy(showtime => showtime.Time)) { <span class="time-pill">@showtime.Time</span> }</div></div>
+                    }
+                </div>
+            </div>
+        </article>
+    }
+</section>
+<div class="empty-state" data-wishlist-empty hidden><strong>Your wishlist is empty.</strong><span>Add movies from the schedule to see their showtimes here.</span><a class="upcoming-link" href="/">Browse now showing <span>↗</span></a></div>
