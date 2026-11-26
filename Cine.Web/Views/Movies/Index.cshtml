@@ -36,14 +36,56 @@ else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     <section class="movie-grid">
     @foreach (var movie in Model.Movies)
     {
-        <article class="movie-card" data-movie-key="@($"{movie.DetailUrl}|{movie.Title}")" data-movie-title="@movie.Title"><div class="movie-index">@(Model.Movies.IndexOf(movie) + 1).0</div><div class="movie-info"><div class="title-line"><h3>@movie.Title</h3><span class="rating-display" data-rating-display hidden></span>@if (movie.IsCartoon) { <span class="genre-tag">CARTOON</span> }</div><p class="description">@movie.Description</p><div class="movie-meta"><span>@(string.IsNullOrWhiteSpace(movie.Price) ? "Tickets at box office" : movie.Price)</span><a href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a></div><div class="watch-area"><button type="button" class="wishlist-button" data-wishlist-action>Add to wishlist</button><button type="button" class="watch-button" data-watch-action>Mark as watched</button><form class="review-form" data-review-form hidden><label for="rating-@Model.Movies.IndexOf(movie)">Your rating</label><div class="rating-control"><span aria-hidden="true">RATE</span><input id="rating-@Model.Movies.IndexOf(movie)" class="rating-select" data-rating-input type="number" min="1" max="10" step="1" placeholder="1-10" required /></div><label for="review-@Model.Movies.IndexOf(movie)">Your review</label><textarea id="review-@Model.Movies.IndexOf(movie)" maxlength="500" rows="3" placeholder="What did you think?" data-review-input></textarea><div class="review-actions"><button type="submit" class="save-review-button">Save review</button><button type="button" class="cancel-review-button" data-cancel-review>Cancel</button></div><small class="review-limit">Up to 500 characters</small></form></div></div><div class="showtimes"><span class="showtimes-label">SHOWTIMES</span><div class="time-list">
+        <article class="movie-card" data-movie-key="@($"{movie.DetailUrl}|{movie.Title}")" data-movie-title="@movie.Title"><div class="movie-index">@(Model.Movies.IndexOf(movie) + 1).0</div><div class="movie-info"><div class="title-line"><h3>@movie.Title</h3>@if (movie.Info?.Score is not null) { <span class="tmdb-score">★ @movie.Info.Score.Value.ToString("0.0", CultureInfo.InvariantCulture)</span> }<span class="rating-display" data-rating-display hidden></span>@if (movie.IsCartoon) { <span class="genre-tag">CARTOON</span> }</div><p class="description">@movie.Description</p>@if (movie.Info?.Reviews is { Count: > 0 }) { <div class="external-reviews">@foreach (var review in movie.Info!.Reviews.Take(2)) { <blockquote><p>&ldquo;@review.Quote&rdquo;</p><cite>@review.Author</cite></blockquote> }</div> }<div class="movie-meta"><span>@(string.IsNullOrWhiteSpace(movie.Price) ? "Tickets at box office" : movie.Price)</span><a href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a>@if (!string.IsNullOrEmpty(movie.Info?.ImdbUrl)) { <a href="@movie.Info!.ImdbUrl" target="_blank" rel="noopener">IMDb <span>↗</span></a> }@if (!string.IsNullOrEmpty(movie.Info?.LetterboxdUrl)) { <a href="@movie.Info!.LetterboxdUrl" target="_blank" rel="noopener">Letterboxd <span>↗</span></a> }@if (movie.Info is not null) { <button type="button" class="dialog-trigger" data-movie-dialog-open>More info</button> }</div><div class="watch-area"><button type="button" class="wishlist-button" data-wishlist-action>Add to wishlist</button><button type="button" class="watch-button" data-watch-action>Mark as watched</button><form class="review-form" data-review-form hidden><label for="rating-@Model.Movies.IndexOf(movie)">Your rating</label><div class="rating-control"><span aria-hidden="true">RATE</span><input id="rating-@Model.Movies.IndexOf(movie)" class="rating-select" data-rating-input type="number" min="1" max="10" step="1" placeholder="1-10" required /></div><label for="review-@Model.Movies.IndexOf(movie)">Your review</label><textarea id="review-@Model.Movies.IndexOf(movie)" maxlength="500" rows="3" placeholder="What did you think?" data-review-input></textarea><div class="review-actions"><button type="submit" class="save-review-button">Save review</button><button type="button" class="cancel-review-button" data-cancel-review>Cancel</button></div><small class="review-limit">Up to 500 characters</small></form></div></div><div class="showtimes"><span class="showtimes-label">SHOWTIMES</span><div class="time-list">
             @foreach (var showtime in movie.Showtimes.OrderBy(time => time.Time))
             {
                 var hour = int.TryParse(showtime.Time.Split(':')[0], out var parsedHour) ? parsedHour : -1;
                 var primeTime = Model.SelectedDate.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && (hour == 16 || hour == 17);
                 <span class="time-pill @(primeTime ? "prime-time" : "")">@showtime.Time</span>
             }
-        </div></div></article>
+        </div></div>
+        @if (movie.Info is not null)
+        {
+            <dialog class="movie-dialog" data-movie-dialog>
+                <div class="movie-dialog-body">
+                    <div class="title-line">
+                        <h3>@movie.Title</h3>
+                        @if (movie.Info!.Score is not null)
+                        {
+                            <span class="tmdb-score">★ @movie.Info.Score.Value.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(movie.Info.Overview))
+                    {
+                        <p class="dialog-eyebrow">TMDB DESCRIPTION</p>
+                        <p class="dialog-overview">@movie.Info.Overview</p>
+                    }
+                    @if (movie.Info.Reviews is { Count: > 0 })
+                    {
+                        <p class="dialog-eyebrow">REVIEWS</p>
+                        <div class="external-reviews dialog-reviews">
+                            @foreach (var review in movie.Info.Reviews)
+                            {
+                                <blockquote><p>&ldquo;@(string.IsNullOrEmpty(review.Content) ? review.Quote : review.Content)&rdquo;</p><cite>@review.Author</cite></blockquote>
+                            }
+                        </div>
+                    }
+                    <div class="movie-links dialog-links">
+                        @if (!string.IsNullOrEmpty(movie.Info.ImdbUrl))
+                        {
+                            <a class="movie-link" href="@movie.Info.ImdbUrl" target="_blank" rel="noopener">IMDb <span>↗</span></a>
+                        }
+                        @if (!string.IsNullOrEmpty(movie.Info.LetterboxdUrl))
+                        {
+                            <a class="movie-link" href="@movie.Info.LetterboxdUrl" target="_blank" rel="noopener">Letterboxd <span>↗</span></a>
+                        }
+                        <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">CineStar <span>↗</span></a>
+                        <button type="button" class="dialog-close" data-movie-dialog-close>Close</button>
+                    </div>
+                </div>
+            </dialog>
+        }
+    </article>
     }
 </section>
 @if (Model.MovieCount == 0) { <div class="empty-state"><strong>No screenings found.</strong><span>Try another search or turn cartoons back on.</span></div> }

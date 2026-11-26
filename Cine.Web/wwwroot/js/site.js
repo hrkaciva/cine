@@ -253,3 +253,19 @@ updateWishlistList();
 updateWishlistCount();
 
 applyWatchedFilter();
+
+// "More info" dialogs. The native <dialog> element provides focus trapping, Esc handling and the backdrop.
+document.querySelectorAll('[data-movie-dialog-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+        button.closest('article')?.querySelector('[data-movie-dialog]')?.showModal();
+    });
+});
+
+document.querySelectorAll('[data-movie-dialog]').forEach((dialog) => {
+    dialog.addEventListener('click', (event) => {
+        // Clicks on the ::backdrop area target the dialog element itself, not its body.
+        if (event.target === dialog) dialog.close();
+    });
+
+    dialog.querySelector('[data-movie-dialog-close]')?.addEventListener('click', () => dialog.close());
+});

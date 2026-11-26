@@ -16,6 +16,7 @@ The CineStar page contains useful information, but it can be difficult to scan q
 - Saves movies to a browser-local wishlist and shows their current screening times; saved films that leave the schedule stay listed (marked as not currently showing) until removed
 - Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page, ordered by release date
 - Shows each upcoming movie's announced release date when available
+- Enriches schedule and upcoming movies with TMDB details: a score badge, short review quotes and IMDb/Letterboxd links on each card (cards keep CineStar's own description), plus a "More info" dialog with the fuller English description and complete review excerpts
 - Keeps the selected date and schedule easy to scan on mobile
 - Caches scraped data for one hour to avoid unnecessary requests
 - Falls back to the last successful scrape when CineStar is temporarily unavailable
@@ -30,9 +31,11 @@ The app therefore treats the displayed title as schedule data rather than as a p
 
 ```text
 Cine/
-├── Cine/                       # Shared models and CineStar scraper
+├── Cine/                       # Shared models, CineStar scraper, TMDB enrichment
 │   ├── Models/Movie.cs
-│   └── Service/ParsingMoviesService.cs
+│   ├── Models/MovieInfo.cs
+│   ├── Service/ParsingMoviesService.cs
+│   └── Service/TmdbMovieInfoService.cs
 ├── Cine.Web/                   # ASP.NET Core MVC web app
 │   ├── Controllers/MoviesController.cs
 │   ├── Models/MoviesViewModel.cs and WishlistViewModel.cs
@@ -48,8 +51,16 @@ Cine/
 
 - .NET SDK 10.0 or later
 - Network access to `cinestarcinemas.ba`
+- A free [TMDB](https://www.themoviedb.org/) API key for movie enrichment (optional; without it the app still works and simply shows CineStar's own descriptions)
 
 ## Run Locally
+
+Store your TMDB API key in user-secrets so it is never committed (once per machine, from the repository root):
+
+```bash
+dotnet user-secrets init --project Cine.Web
+dotnet user-secrets set "Tmdb:ApiKey" "your_key" --project Cine.Web
+```
 
 From the repository root:
 
@@ -93,6 +104,18 @@ The filters are represented in the URL, so a view can be bookmarked or shared.
 The `/upcoming` action discovers the current “Uskoro” link from the CineStar homepage, then uses a separate one-hour cache for the resulting movie list. This avoids depending on CineStar's numeric page suffix. The list is ordered by release date, with undated titles last.
 
 A background service warms the cache and refreshes both the schedule and upcoming-movies data approximately once per hour while the web app is running. Requests use a 15-second timeout and identify the app with a User-Agent header. If a refresh fails, the last successful data is retained and the page marks it as stale.
+
+## TMDB Enrichment
+
+`TmdbMovieInfoService` matches each visible movie title against TMDB and attaches a score, the English overview, up to three review quotes, and IMDb/Letterboxd links (the Letterboxd link uses their IMDb-based alias route, so no scraping is involved). The movie card keeps CineStar's own description and shows up to two short quotes; the "More info" dialog shows the fuller TMDB description and the review excerpts at greater length.
+
+- Lookups are cached per title for 24 hours; titles without a match are remembered for 6 hours so unknown localized titles are not re-searched on every request.
+- Only movies shown after filtering are enriched, in parallel, which keeps the request volume small.
+- Titles are matched by exact title (including the original title) first, then by the most popular result; projection suffixes such as `3D` are stripped before searching.
+- Network failures are never cached; they just leave that movie with the regular CineStar description, and the lookup is retried on the next request.
+- Without a configured API key the enrichment is silently skipped.
+
+If TMDB's response shape changes, update the record types at the bottom of `Cine/Service/TmdbMovieInfoService.cs`.
 
 ## Development Checks
 

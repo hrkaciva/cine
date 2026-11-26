@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cine.Web.Controllers;
 
-public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger<MoviesController> logger) : Controller
+public class MoviesController(ParsingMoviesService parsingMoviesService, TmdbMovieInfoService tmdbMovieInfoService, ILogger<MoviesController> logger) : Controller
 {
     [HttpGet("/upcoming")]
     public async Task<IActionResult> Upcoming(CancellationToken cancellationToken)
@@ -13,6 +13,7 @@ public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger
         try
         {
             var result = await parsingMoviesService.GetUpcomingMoviesAsync(cancellationToken);
+            await tmdbMovieInfoService.EnrichMoviesAsync(result.Movies, cancellationToken);
             return View(new UpcomingMoviesViewModel
             {
                 Movies = result.Movies
@@ -91,6 +92,7 @@ public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger
                     ? movies.OrderBy(movie => movie.Title)
                     : movies.OrderBy(movie => movie.Showtimes.Min(showtime => showtime.Time)))
                 .ToList();
+            await tmdbMovieInfoService.EnrichMoviesAsync(movieViewModel.Movies, cancellationToken);
             movieViewModel.AvailableDates = result.Movies
                 .SelectMany(movie => movie.Showtimes)
                 .Select(showtime => showtime.Date)

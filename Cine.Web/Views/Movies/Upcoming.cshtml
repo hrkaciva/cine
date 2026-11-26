@@ -1,4 +1,5 @@
 @model Cine.Web.Models.UpcomingMoviesViewModel
+@using System.Globalization
 
 @{
     ViewData["Title"] = "Uskoro u kinima";
@@ -37,17 +38,44 @@ else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
                 <div class="upcoming-info">
                     <div class="title-line">
                         <h2>@movie.Title</h2>
+                        @if (movie.Info?.Score is not null)
+                        {
+                            <span class="tmdb-score">★ @movie.Info.Score.Value.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                        }
                         @if (movie.IsCartoon)
                         {
                             <span class="genre-tag">CARTOON</span>
                         }
                     </div>
                     <p class="description">@movie.Description</p>
+                    @if (movie.Info?.Reviews is { Count: > 0 })
+                    {
+                        <div class="external-reviews">
+                            @foreach (var review in movie.Info!.Reviews.Take(2))
+                            {
+                                <blockquote><p>&ldquo;@review.Quote&rdquo;</p><cite>@review.Author</cite></blockquote>
+                            }
+                        </div>
+                    }
                     @if (movie.ReleaseDate is { } releaseDate)
                     {
                         <p class="release-date">Početak prikazivanja: @releaseDate.ToString("dd.MM.yyyy.")</p>
                     }
-                    <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a>
+                    <div class="movie-links">
+                        <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a>
+                        @if (!string.IsNullOrEmpty(movie.Info?.ImdbUrl))
+                        {
+                            <a class="movie-link" href="@movie.Info!.ImdbUrl" target="_blank" rel="noopener">IMDb <span>↗</span></a>
+                        }
+                        @if (!string.IsNullOrEmpty(movie.Info?.LetterboxdUrl))
+                        {
+                            <a class="movie-link" href="@movie.Info!.LetterboxdUrl" target="_blank" rel="noopener">Letterboxd <span>↗</span></a>
+                        }
+                        @if (movie.Info is not null)
+                        {
+                            <button type="button" class="dialog-trigger" data-movie-dialog-open>More info</button>
+                        }
+                    </div>
                 </div>
                 @if (movie.ReleaseDate is { } badgeDate)
                 {
@@ -56,6 +84,47 @@ else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
                 else
                 {
                     <div class="coming-badge">COMING<br />SOON</div>
+                }
+                @if (movie.Info is not null)
+                {
+                    <dialog class="movie-dialog" data-movie-dialog>
+                        <div class="movie-dialog-body">
+                            <div class="title-line">
+                                <h3>@movie.Title</h3>
+                                @if (movie.Info!.Score is not null)
+                                {
+                                    <span class="tmdb-score">★ @movie.Info.Score.Value.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(movie.Info.Overview))
+                            {
+                                <p class="dialog-eyebrow">TMDB DESCRIPTION</p>
+                                <p class="dialog-overview">@movie.Info.Overview</p>
+                            }
+                            @if (movie.Info.Reviews is { Count: > 0 })
+                            {
+                                <p class="dialog-eyebrow">REVIEWS</p>
+                                <div class="external-reviews dialog-reviews">
+                                    @foreach (var review in movie.Info.Reviews)
+                                    {
+                                        <blockquote><p>&ldquo;@(string.IsNullOrEmpty(review.Content) ? review.Quote : review.Content)&rdquo;</p><cite>@review.Author</cite></blockquote>
+                                    }
+                                </div>
+                            }
+                            <div class="movie-links dialog-links">
+                                @if (!string.IsNullOrEmpty(movie.Info.ImdbUrl))
+                                {
+                                    <a class="movie-link" href="@movie.Info.ImdbUrl" target="_blank" rel="noopener">IMDb <span>↗</span></a>
+                                }
+                                @if (!string.IsNullOrEmpty(movie.Info.LetterboxdUrl))
+                                {
+                                    <a class="movie-link" href="@movie.Info.LetterboxdUrl" target="_blank" rel="noopener">Letterboxd <span>↗</span></a>
+                                }
+                                <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">CineStar <span>↗</span></a>
+                                <button type="button" class="dialog-close" data-movie-dialog-close>Close</button>
+                            </div>
+                        </div>
+                    </dialog>
                 }
             </article>
         }

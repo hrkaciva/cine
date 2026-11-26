@@ -9,6 +9,9 @@ public class Movie
     public bool IsCartoon { get; set; }
     public DateOnly? ReleaseDate { get; set; }
     public List<ShowTime> Showtimes { get; set; } = [];
+
+    /// <summary>Optional TMDB details attached by the web app; the scraper leaves this null.</summary>
+    public MovieInfo? Info { get; set; }
 }
 
 public class ShowTime
