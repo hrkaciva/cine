@@ -145,23 +145,111 @@ document.querySelectorAll('[data-wishlist-action]').forEach((button) => {
     });
 });
 
-const wishlistMovies = readWishlist();
+// Saved movies that are no longer in the scraped schedule have no server-rendered card,
+// so build a fallback card from the wishlist entry itself. The movie key is "DetailUrl|Title".
+const createWishlistFallbackCard = (movieKey, savedMovie) => {
+    const separatorIndex = movieKey.indexOf('|');
+    if (separatorIndex < 1) return null;
+    const detailUrl = movieKey.slice(0, separatorIndex);
+    const title = movieKey.slice(separatorIndex + 1) || savedMovie?.title || 'Untitled film';
+
+    const card = document.createElement('article');
+    card.className = 'wishlist-card';
+    card.dataset.wishlistCard = '';
+    card.dataset.movieKey = movieKey;
+
+    const index = document.createElement('div');
+    index.className = 'movie-index';
+    card.append(index);
+
+    const details = document.createElement('div');
+    const titleRow = document.createElement('div');
+    titleRow.className = 'wishlist-title';
+    const heading = document.createElement('h2');
+    heading.textContent = title;
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'remove-wishlist-button';
+    removeButton.dataset.removeWishlist = '';
+    removeButton.textContent = 'Remove';
+    titleRow.append(heading, removeButton);
+    details.append(titleRow);
+
+    if (detailUrl) {
+        const detailLink = document.createElement('a');
+        detailLink.className = 'movie-link';
+        detailLink.href = detailUrl;
+        detailLink.target = '_blank';
+        detailLink.rel = 'noopener';
+        detailLink.append('View film details ');
+        const arrow = document.createElement('span');
+        arrow.textContent = '↗';
+        detailLink.append(arrow);
+        details.append(detailLink);
+    }
+
+    const times = document.createElement('div');
+    times.className = 'wishlist-times';
+    const day = document.createElement('div');
+    day.className = 'wishlist-day';
+    const dayLabel = document.createElement('span');
+    dayLabel.textContent = 'NOT CURRENTLY SHOWING';
+    const timeList = document.createElement('div');
+    timeList.className = 'time-list';
+    const timePill = document.createElement('span');
+    timePill.className = 'time-pill';
+    timePill.textContent = 'No scheduled screenings';
+    timeList.append(timePill);
+    day.append(dayLabel, timeList);
+    times.append(day);
+    details.append(times);
+    card.append(details);
+    return card;
+};
+
+const wishlistGrid = document.querySelector('[data-wishlist-list]');
+if (wishlistGrid) {
+    const renderedMovieKeys = new Set([...document.querySelectorAll('[data-wishlist-card]')].map((card) => card.dataset.movieKey));
+    Object.entries(readWishlist()).forEach(([movieKey, savedMovie]) => {
+        if (renderedMovieKeys.has(movieKey)) return;
+        const fallbackCard = createWishlistFallbackCard(movieKey, savedMovie);
+        if (fallbackCard) wishlistGrid.append(fallbackCard);
+    });
+
+    // Keep the grid alphabetical so fallback cards blend into the server-rendered list.
+    [...wishlistGrid.children]
+        .sort((first, second) => (first.querySelector('h2')?.textContent ?? '').localeCompare(second.querySelector('h2')?.textContent ?? ''))
+        .forEach((card) => wishlistGrid.append(card));
+}
+
+const updateWishlistList = () => {
+    const movies = readWishlist();
+    let visibleCount = 0;
+
+    document.querySelectorAll('[data-wishlist-card]').forEach((card) => {
+        const visible = Boolean(movies[card.dataset.movieKey]);
+        card.classList.toggle('is-hidden-by-filter', !visible);
+        if (!visible) return;
+        visibleCount++;
+        const index = card.querySelector('.movie-index');
+        if (index) index.textContent = `${visibleCount}.0`;
+    });
+
+    const emptyState = document.querySelector('[data-wishlist-empty]');
+    if (emptyState) emptyState.hidden = visibleCount > 0;
+};
+
 document.querySelectorAll('[data-wishlist-card]').forEach((card) => {
-    card.classList.toggle('is-hidden-by-filter', !wishlistMovies[card.dataset.movieKey]);
     card.querySelector('[data-remove-wishlist]')?.addEventListener('click', () => {
         const movies = readWishlist();
         delete movies[card.dataset.movieKey];
         writeWishlist(movies);
-        card.classList.add('is-hidden-by-filter');
         updateWishlistCount();
-        const hasVisibleMovies = [...document.querySelectorAll('[data-wishlist-card]')].some((item) => !item.classList.contains('is-hidden-by-filter'));
-        const emptyState = document.querySelector('[data-wishlist-empty]');
-        if (emptyState) emptyState.hidden = hasVisibleMovies;
+        updateWishlistList();
     });
 });
 
-const wishlistEmpty = document.querySelector('[data-wishlist-empty]');
-if (wishlistEmpty) wishlistEmpty.hidden = [...document.querySelectorAll('[data-wishlist-card]')].some((card) => !card.classList.contains('is-hidden-by-filter'));
+updateWishlistList();
 updateWishlistCount();
 
 applyWatchedFilter();

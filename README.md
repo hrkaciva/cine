@@ -13,8 +13,9 @@ The CineStar page contains useful information, but it can be difficult to scan q
 - Highlights weekday screenings starting around 16:00 and 17:00
 - Shows each movie's description and ticket price when available
 - Links each movie to its CineStar detail page
-- Saves movies to a browser-local wishlist and shows their current screening times
-- Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page
+- Saves movies to a browser-local wishlist and shows their current screening times; saved films that leave the schedule stay listed (marked as not currently showing) until removed
+- Provides an `/upcoming` page for movies announced on CineStar's upcoming-films page, ordered by release date
+- Shows each upcoming movie's announced release date when available
 - Keeps the selected date and schedule easy to scan on mobile
 - Caches scraped data for one hour to avoid unnecessary requests
 - Falls back to the last successful scrape when CineStar is temporarily unavailable
@@ -89,7 +90,7 @@ The filters are represented in the URL, so a view can be bookmarked or shared.
 4. `MoviesController` applies the selected date, search, cartoon filter, and sort order.
 5. The MVC view renders the schedule in a responsive layout.
 
-The `/upcoming` action discovers the current “Uskoro” link from the CineStar homepage, then uses a separate one-hour cache for the resulting movie list. This avoids depending on CineStar's numeric page suffix.
+The `/upcoming` action discovers the current “Uskoro” link from the CineStar homepage, then uses a separate one-hour cache for the resulting movie list. This avoids depending on CineStar's numeric page suffix. The list is ordered by release date, with undated titles last.
 
 A background service warms the cache and refreshes both the schedule and upcoming-movies data approximately once per hour while the web app is running. Requests use a 15-second timeout and identify the app with a User-Agent header. If a refresh fails, the last successful data is retained and the page marks it as stale.
 
@@ -111,6 +112,7 @@ The source page is external and its HTML can change. Optional fields are handled
 - Missing prices show `Tickets at box office`.
 - Missing movie links fall back to the CineStar Mostar page.
 - Cartoon detection uses the source class and common animation labels.
+- Release dates are parsed from the source's `najava` notice (`Početak prikazivanja: dd.MM.yyyy.`). Movies without an announced date keep a generic Coming soon badge.
 - Empty or changed result markup is treated as a failed refresh instead of replacing valid cached data.
 - Date parsing considers the previous, current, and next year so schedules around New Year remain usable.
 

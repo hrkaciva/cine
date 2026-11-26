@@ -1,13 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-    </PropertyGroup>
+      <UserSecretsId>6449656c-949d-4a0e-8f6d-79aaa568d3e3</UserSecretsId>
+  </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Cine\Cine.csproj"/>
+        <ProjectReference Include="..\Cine\Cine.csproj" />
     </ItemGroup>
 
 </Project>

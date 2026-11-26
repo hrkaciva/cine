@@ -43,9 +43,20 @@ else if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
                         }
                     </div>
                     <p class="description">@movie.Description</p>
+                    @if (movie.ReleaseDate is { } releaseDate)
+                    {
+                        <p class="release-date">Početak prikazivanja: @releaseDate.ToString("dd.MM.yyyy.")</p>
+                    }
                     <a class="movie-link" href="@movie.DetailUrl" target="_blank" rel="noopener">View film details <span>↗</span></a>
                 </div>
-                <div class="coming-badge">COMING<br />SOON</div>
+                @if (movie.ReleaseDate is { } badgeDate)
+                {
+                    <div class="coming-badge"><strong>@badgeDate.ToString("dd.MM.")</strong><br />@badgeDate.ToString("yyyy.")</div>
+                }
+                else
+                {
+                    <div class="coming-badge">COMING<br />SOON</div>
+                }
             </article>
         }
     </section>

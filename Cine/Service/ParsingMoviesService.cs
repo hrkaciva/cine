@@ -111,6 +111,8 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache, ILo
             var description = FirstText(movieNode, ".//div[contains(@class, 'description')]")
                               ?? FirstText(movieNode, ".//p");
             var price = FirstText(movieNode, ".//*[contains(@class, 'price')]") ?? "";
+            var releaseDate = ParseReleaseDate(
+                FirstText(movieNode, ".//div[contains(concat(' ', normalize-space(@class), ' '), ' najava ')]"));
             var searchableText = movieNode.InnerText.ToLowerInvariant();
 
             if (searchableText.Contains("uživo") || searchableText.Contains("uzivo"))
@@ -152,6 +154,7 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache, ILo
                 IsCartoon = movieNode.GetAttributeValue("class", "").Contains("cartoon", StringComparison.OrdinalIgnoreCase)
                             || searchableText.Contains("animirani")
                             || searchableText.Contains("animation"),
+                ReleaseDate = releaseDate,
                 Showtimes = showTimes
             });
         }
@@ -171,6 +174,16 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache, ILo
     private static string MakeAbsoluteUrl(string url) =>
         string.IsNullOrWhiteSpace(url) ? "https://cinestarcinemas.ba/mostar-mepas-mall" :
         url.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? url : $"https://cinestarcinemas.ba{(url.StartsWith('/') ? "" : "/")}{url}";
+
+    private static DateOnly? ParseReleaseDate(string? dateText)
+    {
+        if (string.IsNullOrEmpty(dateText))
+            return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(dateText, @"\d{2}\.\d{2}\.\d{4}");
+
+        return DateOnly.TryParseExact(match.Value, "dd.MM.yyyy", out var date) ? date : null;
+    }
 
     private static DateOnly? ParseDate(string? dateText)
     {
@@ -217,6 +230,7 @@ public class ParsingMoviesService(HttpClient httpClient, IMemoryCache cache, ILo
                     Price = movie.Price,
                     DetailUrl = movie.DetailUrl,
                     IsCartoon = movie.IsCartoon,
+                    ReleaseDate = movie.ReleaseDate,
                     Showtimes = filteredShowTimes
                 });
             }

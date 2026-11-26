@@ -15,7 +15,10 @@ public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger
             var result = await parsingMoviesService.GetUpcomingMoviesAsync(cancellationToken);
             return View(new UpcomingMoviesViewModel
             {
-                Movies = result.Movies.OrderBy(movie => movie.Title).ToList(),
+                Movies = result.Movies
+                    .OrderBy(movie => movie.ReleaseDate ?? DateOnly.MaxValue)
+                    .ThenBy(movie => movie.Title)
+                    .ToList(),
                 IsDataStale = result.IsStale,
                 DataFetchedAt = result.FetchedAt,
                 ErrorMessage = result.ErrorMessage
@@ -72,6 +75,7 @@ public class MoviesController(ParsingMoviesService parsingMoviesService, ILogger
                     Price = movie.Price,
                     DetailUrl = movie.DetailUrl,
                     IsCartoon = movie.IsCartoon,
+                    ReleaseDate = movie.ReleaseDate,
                     Showtimes = movie.Showtimes.Where(showtime => showtime.Date == selectedDate).ToList()
                 })
                 .Where(movie => movie.Showtimes.Count > 0)

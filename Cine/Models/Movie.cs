@@ -7,6 +7,7 @@ public class Movie
     public string Price { get; set; } = string.Empty;
     public string DetailUrl { get; set; } = string.Empty;
     public bool IsCartoon { get; set; }
+    public DateOnly? ReleaseDate { get; set; }
     public List<ShowTime> Showtimes { get; set; } = [];
 }
 
